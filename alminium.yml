@@ -1,0 +1,87 @@
+- hosts: remoteserv
+  vars:
+  - dbpasswd: localpass
+  - http_proxy: http://proxy.rdh.ecl.ntt.co.jp:20066
+  - login_user: root
+  - login_password: ilikerandompasswords
+
+  tasks:
+#     - name: set http_proxy
+#       lineinfile: dest=/etc/environment regexp='^http_proxy' line='http_proxy="{{ http_proxy }}"'
+#       when: http_proxy is defined
+
+#     - name: set https_proxy
+#       lineinfile: dest=/etc/environment regexp='^https_proxy' line='https_proxy="{{ http_proxy }}"'
+#       when: http_proxy is defined
+
+     
+     - yum: name=mysql-server,git,subversion,mercurial,unzip,mysql,mysql-server,mysql-devel,ImageMagick,ImageMagick-devel,httpd,httpd-devel,sudo,gcc-c++,make,patch,apr-devel,openssl-devel,curl-devel,zlib-devel,mod_auth_mysql,mod_dav_svn,mod_wsgi ,mod_perl,perl-Apache-DBI,perl-Digest-SHA,libical,python-docutils,rpm-build,rpmdevtools,readline-devel,ncurses-devel,gdbm-devel,tcl-devel,openssl-devel,db4-devel,byacc,libyaml-devel,glibc-devel,ImageMagick-devel,ipa-pgothic-fonts,libxml2-devel,libxslt-devel,mysql-devel,sqlite-devel,libffi-devel
+       environment:
+         http_proxy: "{{http_proxy}}"
+
+     - service: name=mysqld state=started
+
+     - yum: name=MySQL-python
+       environment:
+         http_proxy: "{{http_proxy}}"
+          
+     - mysql_db: name=alminium state=present 
+
+     - name: create user
+       mysql_user: name=alminium password="{{dbpasswd}}" priv=alminium.*:ALL state=present
+
+     - name: checkout redmine
+       git: repo=https://github.com/redmine/redmine.git version=2.5.2 dest=/opt/alminium depth=1
+       environment:
+         https_proxy: "{{http_proxy}}"
+
+     - debug: msg="============= Setup Redmine ====================="
+
+     - name: template
+       template: src=templates/database.yml.j2 dest=/opt/alminium/config/database.yml owner=apache group=apache
+     
+     - command: bundle install --path vendor/bundler --without development test postgresql sqlite
+       environment:
+         http_proxy: "{{http_proxy}}"
+       args:
+         chdir: /opt/alminium
+
+     - command: bundle exec rake generate_secret_token
+       environment:
+         http_proxy: "{{http_proxy}}"
+       args:
+         chdir: /opt/alminium
+
+     - command: bundle exec rake db:migrate RAILS_ENV=production
+       environment:
+         http_proxy: "{{http_proxy}}"
+       args:
+         chdir: /opt/alminium
+
+     - shell: echo "ja" |bundle exec rake redmine:load_default_data RAILS_ENV=production
+       environment:
+         http_proxy: "{{http_proxy}}"
+       args:
+         chdir: /opt/alminium
+
+     - name: template
+       template: src=templates/redmine.conf.j2 dest=/etc/httpd/conf.d/redmine.conf owner=apache group=apache
+
+     - name: template
+       template: src=templates/vcs.conf.j2 dest=/etc/httpd/conf.d/vcs.conf owner=apache group=apache
+
+     - command: bundle exec passenger-install-apache2-module --auto
+       environment:
+         http_proxy: "{{http_proxy}}"
+       args:
+         chdir: /opt/alminium
+
+     - command: bundle exec passenger-install-apache2-module --snippet > /etc/httpd/conf.d/passenger.conf
+       environment:
+         http_proxy: "{{http_proxy}}"
+       args:
+         chdir: /opt/alminium
+
+     - file: path=/etc/httpd/Apache/Authn state=directory owner=apache group=apache
+     - copy: src=resources/Redmine.pm dest=/etc/httpd/Apache/Authn
+
