@@ -1,7 +1,7 @@
 - hosts: remoteserv
   vars:
   - dbpasswd: localpass
-  - http_proxy: http://proxy.rdh.ecl.ntt.co.jp:20066
+  - http_proxy: http:////
   - login_user: root
   - login_password: ilikerandompasswords
 
